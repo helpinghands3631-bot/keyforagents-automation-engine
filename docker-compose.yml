@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: keyforagents-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - NOTION_TOKEN=${NOTION_TOKEN}
+      - NOTION_LEADS_DB=${NOTION_LEADS_DB}
+      - NOTION_REVENUE_DB=${NOTION_REVENUE_DB}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - DATABRICKS_HOST=${DATABRICKS_HOST}
+      - DATABRICKS_TOKEN=${DATABRICKS_TOKEN}
+      - DATABRICKS_HTTP_PATH=${DATABRICKS_HTTP_PATH}
+      - API_BASE_URL=https://keyforagents.com/api
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - keyforagents-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  lead-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: keyforagents-lead-agent
+    restart: unless-stopped
+    command: python -m agents.lead_agent
+    environment:
+      - NOTION_TOKEN=${NOTION_TOKEN}
+      - NOTION_LEADS_DB=${NOTION_LEADS_DB}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - API_BASE_URL=https://keyforagents.com/api
+    networks:
+      - keyforagents-net
+    depends_on:
+      - api
+
+  redis:
+    image: redis:7-alpine
+    container_name: keyforagents-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - keyforagents-net
+
+networks:
+  keyforagents-net:
+    driver: bridge
+
+volumes:
+  logs:
